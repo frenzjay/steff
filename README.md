@@ -6,6 +6,37 @@
 
 ## Wiring
 
+### Create the "Power Strip" (The Breadboard)
+
+Your Arduino has only one "5V" slot, but you need to power two things. We use the white breadboard as a splitter.
+
+ * Red Rail (+): Plug a wire from Arduino 5V --> to the Red Line (+) on the breadboard.
+ * Blue Rail (-): Plug a wire from Arduino GND --> to the Blue Line (-) on the breadboard.
+
+Now the whole Red line is power, and the whole Blue line is ground.
+
+### Connect Everything (Final Step)
+A. Connect the Red Voice Board (VRM2)
+(Take the wires you just twisted onto the board in Part 2)
+ * VCC Wire --> Plug into Red Line (+) on Breadboard.
+ * GND Wire --> Plug into Blue Line (-) on Breadboard.
+ * TXD Wire --> Plug into Arduino Pin 2.
+ * RXD Wire --> Plug into Arduino Pin 3.
+B. Connect the Blue Servo Motor
+(Use 3 Male wires plugged into the black motor connector. Tape them if loose.)
+ * Red (Middle) Wire --> Plug into Red Line (+) on Breadboard.
+ * Brown (Dark) Wire --> Plug into Blue Line (-) on Breadboard.
+ * Orange (Signal) Wire --> Plug into Arduino Pin 9.
+
+If servo two servo:
+
+ * Servo 1 (Red Side): Orange wire goes to Pin 9.
+ * Servo 2 (Yellow Side): Orange wire goes to Pin 10.
+ * (Both motors share the Red/Blue power rails on the breadboard).
+
+
+
+
 
 | Component | Pin Label | Connect to Arduino Pin |
 | :--- | :--- | :--- |
