@@ -3,16 +3,16 @@
 #include <Servo.h>
 
 // ----------------------------------------------------------
-// HARDWARE SETTINGS (Check your wires!)
+// HARDWARE SETTINGS
 // ----------------------------------------------------------
-// Voice Module TX  -> Connect to Arduino Pin 2
-// Voice Module RX  -> Connect to Arduino Pin 3
-// Bio Servo (Yellow Wire)     -> Connect to Arduino Pin 9
-// Non-Bio Servo (Yellow Wire) -> Connect to Arduino Pin 10
+// Voice RX (Green/White) -> Pin 2
+// Voice TX (Blue/Yellow) -> Pin 3
+// Bio Servo -> Pin 9
+// Non-Bio Servo -> Pin 10
 // ----------------------------------------------------------
 
-SoftwareSerial mySerial(2, 3); 
-VR myVR(mySerial);
+// FIX: Initialize library with Pins directly (Fixes "No matching function" error)
+VR myVR(2, 3); 
 
 Servo bioServo;
 Servo nonBioServo;
@@ -20,93 +20,75 @@ Servo nonBioServo;
 uint8_t buf[64];
 
 // ----------------------------------------------------------
-// COMMAND IDs (Must match what you "Trained")
+// COMMAND IDs
 // ----------------------------------------------------------
-#define BIO_P1      (0)  // "Bio" (Person 1)
-#define NONBIO_P1   (1)  // "Non-Bio" (Person 1)
-#define BIO_P2      (2)  // "Bio" (Person 2)
-#define NONBIO_P2   (3)  // "Non-Bio" (Person 2)
+#define BIO_P1      (0)
+#define NONBIO_P1   (1)
+#define BIO_P2      (2)
+#define NONBIO_P2   (3)
 
 void setup() {
-  mySerial.begin(9600);
+  // Initialize Serial for Monitor
   Serial.begin(115200);
   
-  // 1. Attach Servos
+  // Initialize Voice Module
+  myVR.begin(9600);
+  
+  // --- CRITICAL FIX FOR ROTATING ON STARTUP ---
+  // We write the position BEFORE attaching to prevent jumping
+  bioServo.write(0);      
+  nonBioServo.write(0);   
+  
+  // Now we connect the servo
   bioServo.attach(9);
   nonBioServo.attach(10);
   
-  // 2. SAFETY STARTUP: Close lids immediately on power on
-  Serial.println("System Starting... Closing Lids.");
-  bioServo.write(0);
-  nonBioServo.write(0);
-  delay(1000); // Wait for them to settle
+  // Wait a moment for them to lock into position 0
+  delay(1000); 
 
-  // 3. Initialize Voice Module
-  if (myVR.begin()) {
-    Serial.println("VR Module Ready.");
-  } else {
-    Serial.println("VR Module NOT Found. Check RX/TX wires.");
-  }
+  Serial.println("System Ready. Servos Locked at 0.");
 
-  // 4. Load the trained voice commands
-  if (myVR.load(BIO_P1) >= 0) Serial.println("Bio P1 Loaded");
-  if (myVR.load(NONBIO_P1) >= 0) Serial.println("Non-Bio P1 Loaded");
-  if (myVR.load(BIO_P2) >= 0) Serial.println("Bio P2 Loaded");
-  if (myVR.load(NONBIO_P2) >= 0) Serial.println("Non-Bio P2 Loaded");
+  // Load the voice commands
+  if (myVR.load((uint8_t)BIO_P1) >= 0) Serial.println("Bio P1 Loaded");
+  if (myVR.load((uint8_t)NONBIO_P1) >= 0) Serial.println("Non-Bio P1 Loaded");
+  if (myVR.load((uint8_t)BIO_P2) >= 0) Serial.println("Bio P2 Loaded");
+  if (myVR.load((uint8_t)NONBIO_P2) >= 0) Serial.println("Non-Bio P2 Loaded");
 }
 
 void loop() {
-  // Listen for a voice command
   int ret = myVR.recognize(buf, 50);
 
   if (ret > 0) {
-    // ------------------------------------------------------
-    // CASE 1: BIO COMMAND DETECTED
-    // ------------------------------------------------------
+    // --- BIO COMMAND ---
     if (buf[1] == BIO_P1 || buf[1] == BIO_P2) {
       Serial.println("Command: BIO Detected");
-      
-      // Open Slowly (0 to 90 degrees)
-      moveServoSlowly(bioServo, 0, 90);
-      
-      delay(3000); // Keep open for 3 seconds
-      
-      // Close Slowly (90 to 0 degrees)
-      moveServoSlowly(bioServo, 90, 0); 
+      moveServoSlowly(bioServo, 0, 90);  // Open
+      delay(3000);                       // Wait 3 seconds
+      moveServoSlowly(bioServo, 90, 0);  // Close
     }
     
-    // ------------------------------------------------------
-    // CASE 2: NON-BIO COMMAND DETECTED
-    // ------------------------------------------------------
+    // --- NON-BIO COMMAND ---
     else if (buf[1] == NONBIO_P1 || buf[1] == NONBIO_P2) {
       Serial.println("Command: NON-BIO Detected");
-      
-      // Open Slowly
-      moveServoSlowly(nonBioServo, 0, 90);
-      
-      delay(3000); // Keep open for 3 seconds
-      
-      // Close Slowly
-      moveServoSlowly(nonBioServo, 90, 0);
+      moveServoSlowly(nonBioServo, 0, 90); // Open
+      delay(3000);                         // Wait 3 seconds
+      moveServoSlowly(nonBioServo, 90, 0); // Close
     }
   }
 }
 
-// ----------------------------------------------------------
-// SMOOTH MOVEMENT FUNCTION
-// (Prevents the servo from jerking and crashing the Arduino)
-// ----------------------------------------------------------
+// --- SPEED CONTROL ---
 void moveServoSlowly(Servo &s, int start, int end) {
-  int stepDelay = 15; // Speed: Higher number = Slower/Safer
+  // Change '5' to '15' if you want it slower. 
+  // Change '5' to '2' if you want it faster.
+  int stepDelay = 5; 
   
   if (start < end) {
-    // Moving UP (0 -> 90)
     for (int pos = start; pos <= end; pos++) {
       s.write(pos);
       delay(stepDelay); 
     }
   } else {
-    // Moving DOWN (90 -> 0)
     for (int pos = start; pos >= end; pos--) {
       s.write(pos);
       delay(stepDelay);
