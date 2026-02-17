@@ -11,7 +11,7 @@
 // Non-Bio Servo -> Pin 10
 // ----------------------------------------------------------
 
-// FIX: Initialize library with Pins directly (Fixes "No matching function" error)
+// FIX 1: Your library wants pins directly, not a serial object
 VR myVR(2, 3); 
 
 Servo bioServo;
@@ -28,27 +28,21 @@ uint8_t buf[64];
 #define NONBIO_P2   (3)
 
 void setup() {
-  // Initialize Serial for Monitor
+  // FIX 2: Your library handles the serial connection internally
+  myVR.begin(9600); 
+  
   Serial.begin(115200);
   
-  // Initialize Voice Module
-  myVR.begin(9600);
-  
-  // --- CRITICAL FIX FOR ROTATING ON STARTUP ---
-  // We write the position BEFORE attaching to prevent jumping
-  bioServo.write(0);      
-  nonBioServo.write(0);   
-  
-  // Now we connect the servo
+  // Attach Servos
   bioServo.attach(9);
   nonBioServo.attach(10);
   
-  // Wait a moment for them to lock into position 0
-  delay(1000); 
+  // Safety Start
+  bioServo.write(0);
+  nonBioServo.write(0);
+  delay(1000);
 
-  Serial.println("System Ready. Servos Locked at 0.");
-
-  // Load the voice commands
+  // FIX 3: We cast to (uint8_t) to fix the "ambiguous" error
   if (myVR.load((uint8_t)BIO_P1) >= 0) Serial.println("Bio P1 Loaded");
   if (myVR.load((uint8_t)NONBIO_P1) >= 0) Serial.println("Non-Bio P1 Loaded");
   if (myVR.load((uint8_t)BIO_P2) >= 0) Serial.println("Bio P2 Loaded");
@@ -62,27 +56,24 @@ void loop() {
     // --- BIO COMMAND ---
     if (buf[1] == BIO_P1 || buf[1] == BIO_P2) {
       Serial.println("Command: BIO Detected");
-      moveServoSlowly(bioServo, 0, 90);  // Open
-      delay(3000);                       // Wait 3 seconds
-      moveServoSlowly(bioServo, 90, 0);  // Close
+      moveServoSlowly(bioServo, 0, 90);
+      delay(3000); 
+      moveServoSlowly(bioServo, 90, 0); 
     }
     
     // --- NON-BIO COMMAND ---
     else if (buf[1] == NONBIO_P1 || buf[1] == NONBIO_P2) {
       Serial.println("Command: NON-BIO Detected");
-      moveServoSlowly(nonBioServo, 0, 90); // Open
-      delay(3000);                         // Wait 3 seconds
-      moveServoSlowly(nonBioServo, 90, 0); // Close
+      moveServoSlowly(nonBioServo, 0, 90);
+      delay(3000); 
+      moveServoSlowly(nonBioServo, 90, 0);
     }
   }
 }
 
-// --- SPEED CONTROL ---
+// Smooth Movement Function
 void moveServoSlowly(Servo &s, int start, int end) {
-  // Change '5' to '15' if you want it slower. 
-  // Change '5' to '2' if you want it faster.
-  int stepDelay = 5; 
-  
+  int stepDelay = 15; 
   if (start < end) {
     for (int pos = start; pos <= end; pos++) {
       s.write(pos);
