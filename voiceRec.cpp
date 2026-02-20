@@ -1,106 +1,98 @@
-#include <SoftwareSerial.h>
-#include <VoiceRecognitionV3.h>
+#include "DFRobot_DF2301Q.h"
 #include <Servo.h>
 
-// --- 1. HARDWARE PINS ---
-// Voice RX -> Pin 2, Voice TX -> Pin 3
-VR myVR(2, 3); 
+// Initialize the I2C Voice Module
+DFRobot_DF2301Q_I2C asr;
 
 Servo bioServo;
 Servo nonBioServo;
 
-uint8_t buf[64];
-
-// --- 2. COMMAND IDs ---
-#define BIO_P1      (0)
-#define NONBIO_P1   (1)
-#define BIO_P2      (2)
-#define NONBIO_P2   (3)
-
-// --- 3. CALIBRATION ANGLES (Fixes the "Mo Lapas" / Overshoot) ---
+// --- CALIBRATION ANGLES ---
 // If the lid still goes too far down, change 20 to 30.
-// If it doesn't close enough, change 20 to 10.
+// If it doesn't close completely, change 20 to 10.
 int closedAngle = 20; 
 int openAngle = 90;   
 
 void setup() {
   Serial.begin(115200);
-  myVR.begin(9600);
-  
-  Serial.println("System Booting...");
 
-  // Force target positions BEFORE attaching to prevent violent swings
+  // 1. Force target positions BEFORE attaching to prevent violent swings
   bioServo.write(closedAngle);
   nonBioServo.write(closedAngle);
   
-  // Attach briefly to lock them into the starting position
+  // 2. Attach briefly to lock them into position
   bioServo.attach(9);
   nonBioServo.attach(10);
   delay(500); 
   
-  // DETACH IMMEDIATELY (This stops the Timer Clash and Jitter)
+  // 3. DETACH IMMEDIATELY (Stops all jitter)
   bioServo.detach();    
   nonBioServo.detach(); 
-  
-  Serial.println("Servos locked and put to sleep. Loading Voice Commands...");
-  
-  // Load Voice Commands
-  if (myVR.load((uint8_t)BIO_P1) >= 0) Serial.println("Bio P1 Loaded");
-  if (myVR.load((uint8_t)NONBIO_P1) >= 0) Serial.println("Non-Bio P1 Loaded");
-  if (myVR.load((uint8_t)BIO_P2) >= 0) Serial.println("Bio P2 Loaded");
-  if (myVR.load((uint8_t)NONBIO_P2) >= 0) Serial.println("Non-Bio P2 Loaded");
-  
-  Serial.println("Ready! Say a command.");
+
+  // 4. Start the Voice Module
+  while (!(asr.begin())) {
+    Serial.println("Voice Module not found! Check A4 and A5 wiring.");
+    delay(3000);
+  }
+  Serial.println("Voice Module Ready!");
+
+  // Module Settings (Volume 1-7, Wake time in seconds)
+  asr.setVolume(5);
+  asr.setWakeTime(15); 
 }
 
 void loop() {
-  int ret = myVR.recognize(buf, 50);
+  // Check if the module heard a command
+  uint8_t CMDID = asr.getCMDID(); 
 
-  if (ret > 0) {
+  if (CMDID != 0) {
+    Serial.print("Heard Command ID: ");
+    Serial.println(CMDID);
+
     // ------------------------------------------------------
-    // CASE 1: BIO COMMAND DETECTED
+    // COMMAND ID 5: BIO 
     // ------------------------------------------------------
-    if (buf[1] == BIO_P1 || buf[1] == BIO_P2) {
-      Serial.println("Command: BIO");
+    if (CMDID == 5) {
+      Serial.println("Opening BIO Bin...");
       
-      bioServo.attach(9); // Wake up the muscle
+      bioServo.attach(9); // Wake up muscle
       moveServoSlowly(bioServo, closedAngle, openAngle); // Open
       
       delay(3000); // Wait 3 seconds
       
       moveServoSlowly(bioServo, openAngle, closedAngle); // Close
-      bioServo.detach(); // Put back to sleep to STOP JITTER
+      bioServo.detach(); // Put to sleep to stop jitter
     }
     
     // ------------------------------------------------------
-    // CASE 2: NON-BIO COMMAND DETECTED
+    // COMMAND ID 6: NON-BIO 
     // ------------------------------------------------------
-    else if (buf[1] == NONBIO_P1 || buf[1] == NONBIO_P2) {
-      Serial.println("Command: NON-BIO");
+    else if (CMDID == 6) {
+      Serial.println("Opening NON-BIO Bin...");
       
-      nonBioServo.attach(10); // Wake up the muscle
+      nonBioServo.attach(10); // Wake up muscle
       moveServoSlowly(nonBioServo, closedAngle, openAngle); // Open
       
       delay(3000); // Wait 3 seconds
       
       moveServoSlowly(nonBioServo, openAngle, closedAngle); // Close
-      nonBioServo.detach(); // Put back to sleep to STOP JITTER
+      nonBioServo.detach(); // Put to sleep to stop jitter
     }
   }
+  // Small delay for stability
+  delay(100);
 }
 
 // --- SMOOTH MOVEMENT FUNCTION ---
 void moveServoSlowly(Servo &s, int start, int end) {
-  int stepDelay = 10; // Speed: 5 is fast, 15 is slow
+  int stepDelay = 10; // Change to 5 for faster opening, 15 for slower
   
   if (start < end) {
-    // Moving UP
     for (int pos = start; pos <= end; pos++) {
       s.write(pos);
       delay(stepDelay); 
     }
   } else {
-    // Moving DOWN
     for (int pos = start; pos >= end; pos--) {
       s.write(pos);
       delay(stepDelay);
